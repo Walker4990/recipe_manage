@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
-from app.schemas import Recipe, RecipeCreate, RecipeUpdate
+from app.schemas import Category, Recipe, RecipeCreate, RecipeUpdate
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
 
@@ -31,8 +31,11 @@ def create_recipe(payload: RecipeCreate) -> Recipe:
 
 
 @router.get("", response_model=list[Recipe])
-def list_recipes() -> list[Recipe]:
-    return list(_recipes.values())
+def list_recipes(category: Category | None = None) -> list[Recipe]:
+    recipes = _recipes.values()
+    if category is not None:
+        recipes = [r for r in recipes if r.category == category]
+    return list(recipes)
 
 
 @router.get("/{recipe_id}", response_model=Recipe)

@@ -4,6 +4,7 @@ SAMPLE = {
     "ingredients": ["김치", "돼지고기", "두부"],
     "steps": ["김치와 고기를 볶는다", "물을 붓고 끓인다", "두부를 넣는다"],
     "cook_time_minutes": 30,
+    "category": "한식",
 }
 
 
@@ -35,6 +36,18 @@ def test_create_recipe_negative_cook_time(client):
     assert resp.status_code == 422
 
 
+def test_create_recipe_default_category(client):
+    payload = {k: v for k, v in SAMPLE.items() if k != "category"}
+    resp = client.post("/recipes", json=payload)
+    assert resp.status_code == 201
+    assert resp.json()["category"] == "기타"
+
+
+def test_create_recipe_invalid_category(client):
+    resp = client.post("/recipes", json={**SAMPLE, "category": "일식"})
+    assert resp.status_code == 422
+
+
 def test_create_assigns_unique_ids(client):
     first = create(client)
     second = create(client, title="된장찌개")
@@ -53,6 +66,29 @@ def test_list_recipes(client):
     resp = client.get("/recipes")
     assert resp.status_code == 200
     assert [r["title"] for r in resp.json()] == ["김치찌개", "된장찌개"]
+
+
+def test_list_recipes_filter_by_category(client):
+    create(client)
+    create(client, title="까르보나라", category="양식")
+    create(client, title="짜장면", category="중식")
+    create(client, title="된장찌개")
+    resp = client.get("/recipes", params={"category": "한식"})
+    assert resp.status_code == 200
+    assert [r["title"] for r in resp.json()] == ["김치찌개", "된장찌개"]
+    resp = client.get("/recipes", params={"category": "중식"})
+    assert [r["title"] for r in resp.json()] == ["짜장면"]
+
+
+def test_list_recipes_filter_no_match(client):
+    create(client)
+    resp = client.get("/recipes", params={"category": "양식"})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_list_recipes_filter_invalid_category(client):
+    assert client.get("/recipes", params={"category": "일식"}).status_code == 422
 
 
 def test_get_recipe(client):
@@ -74,6 +110,14 @@ def test_update_recipe_partial(client):
     assert body["title"] == "참치김치찌개"
     assert body["ingredients"] == SAMPLE["ingredients"]
     assert client.get(f"/recipes/{created['id']}").json() == body
+
+
+def test_update_recipe_category(client):
+    created = create(client)
+    resp = client.put(f"/recipes/{created['id']}", json={"category": "양식"})
+    assert resp.status_code == 200
+    assert resp.json()["category"] == "양식"
+    assert resp.json()["title"] == SAMPLE["title"]
 
 
 def test_update_recipe_invalid(client):
