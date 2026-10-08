@@ -1,0 +1,81 @@
+warning: in the working copy of 'app/routers/recipes.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_recipes.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/app/routers/recipes.py b/app/routers/recipes.py[m
+[1mindex 4f6786d..f5c50ec 100644[m
+[1m--- a/app/routers/recipes.py[m
+[1m+++ b/app/routers/recipes.py[m
+[36m@@ -1,3 +1,5 @@[m
+[32m+[m[32mfrom typing import Literal[m
+[32m+[m
+ from fastapi import APIRouter, HTTPException, Response, status[m
+ [m
+ from app.schemas import Category, Recipe, RecipeCreate, RecipeUpdate[m
+[36m@@ -31,11 +33,21 @@[m [mdef create_recipe(payload: RecipeCreate) -> Recipe:[m
+ [m
+ [m
+ @router.get("", response_model=list[Recipe])[m
+[31m-def list_recipes(category: Category | None = None) -> list[Recipe]:[m
+[31m-    recipes = _recipes.values()[m
+[32m+[m[32mdef list_recipes([m
+[32m+[m[32m    category: Category | None = None,[m
+[32m+[m[32m    sort_by: Literal["cook_time"] | None = None,[m
+[32m+[m[32m    order: Literal["asc", "desc"] = "asc",[m
+[32m+[m[32m) -> list[Recipe]:[m
+[32m+[m[32m    recipes = list(_recipes.values())[m
+     if category is not None:[m
+         recipes = [r for r in recipes if r.category == category][m
+[31m-    return list(recipes)[m
+[32m+[m[32m    if sort_by == "cook_time":[m
+[32m+[m[32m        # 조리 시간이 없는 레시피는 정렬 방향과 상관없이 맨 뒤에 둔다.[m
+[32m+[m[32m        timed = [r for r in recipes if r.cook_time_minutes is not None][m
+[32m+[m[32m        untimed = [r for r in recipes if r.cook_time_minutes is None][m
+[32m+[m[32m        timed.sort(key=lambda r: r.cook_time_minutes, reverse=order == "desc")[m
+[32m+[m[32m        recipes = timed + untimed[m
+[32m+[m[32m    return recipes[m
+ [m
+ [m
+ @router.get("/{recipe_id}", response_model=Recipe)[m
+[1mdiff --git a/tests/test_recipes.py b/tests/test_recipes.py[m
+[1mindex 85e2af8..2030bd4 100644[m
+[1m--- a/tests/test_recipes.py[m
+[1m+++ b/tests/test_recipes.py[m
+[36m@@ -91,6 +91,39 @@[m [mdef test_list_recipes_filter_invalid_category(client):[m
+     assert client.get("/recipes", params={"category": "일식"}).status_code == 422[m
+ [m
+ [m
+[32m+[m[32mdef test_list_recipes_sort_by_cook_time_asc(client):[m
+[32m+[m[32m    create(client, title="A", cook_time_minutes=30)[m
+[32m+[m[32m    create(client, title="B", cook_time_minutes=None)[m
+[32m+[m[32m    create(client, title="C", cook_time_minutes=10)[m
+[32m+[m[32m    create(client, title="D", cook_time_minutes=20)[m
+[32m+[m[32m    resp = client.get("/recipes", params={"sort_by": "cook_time"})[m
+[32m+[m[32m    assert resp.status_code == 200[m
+[32m+[m[32m    assert [r["title"] for r in resp.json()] == ["C", "D", "A", "B"][m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_list_recipes_sort_by_cook_time_desc(client):[m
+[32m+[m[32m    create(client, title="A", cook_time_minutes=30)[m
+[32m+[m[32m    create(client, title="B", cook_time_minutes=None)[m
+[32m+[m[32m    create(client, title="C", cook_time_minutes=10)[m
+[32m+[m[32m    resp = client.get("/recipes", params={"sort_by": "cook_time", "order": "desc"})[m
+[32m+[m[32m    assert resp.status_code == 200[m
+[32m+[m[32m    assert [r["title"] for r in resp.json()] == ["A", "C", "B"][m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_list_recipes_sort_with_category_filter(client):[m
+[32m+[m[32m    create(client, title="A", cook_time_minutes=30)[m
+[32m+[m[32m    create(client, title="B", cook_time_minutes=5, category="양식")[m
+[32m+[m[32m    create(client, title="C", cook_time_minutes=10)[m
+[32m+[m[32m    resp = client.get("/recipes", params={"category": "한식", "sort_by": "cook_time"})[m
+[32m+[m[32m    assert [r["title"] for r in resp.json()] == ["C", "A"][m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_list_recipes_invalid_sort_params(client):[m
+[32m+[m[32m    assert client.get("/recipes", params={"sort_by": "title"}).status_code == 422[m
+[32m+[m[32m    resp = client.get("/recipes", params={"sort_by": "cook_time", "order": "up"})[m
+[32m+[m[32m    assert resp.status_code == 422[m
+[32m+[m
+[32m+[m
+ def test_get_recipe(client):[m
+     created = create(client)[m
+     resp = client.get(f"/recipes/{created['id']}")[m

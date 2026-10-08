@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Response, status
 
 from app.schemas import Category, Recipe, RecipeCreate, RecipeUpdate
@@ -31,11 +33,21 @@ def create_recipe(payload: RecipeCreate) -> Recipe:
 
 
 @router.get("", response_model=list[Recipe])
-def list_recipes(category: Category | None = None) -> list[Recipe]:
-    recipes = _recipes.values()
+def list_recipes(
+    category: Category | None = None,
+    sort_by: Literal["cook_time"] | None = None,
+    order: Literal["asc", "desc"] = "asc",
+) -> list[Recipe]:
+    recipes = list(_recipes.values())
     if category is not None:
         recipes = [r for r in recipes if r.category == category]
-    return list(recipes)
+    if sort_by == "cook_time":
+        # 조리 시간이 없는 레시피는 정렬 방향과 상관없이 맨 뒤에 둔다.
+        timed = [r for r in recipes if r.cook_time_minutes is not None]
+        untimed = [r for r in recipes if r.cook_time_minutes is None]
+        timed.sort(key=lambda r: r.cook_time_minutes, reverse=order == "desc")
+        recipes = timed + untimed
+    return recipes
 
 
 @router.get("/{recipe_id}", response_model=Recipe)

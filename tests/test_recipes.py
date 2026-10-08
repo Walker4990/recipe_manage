@@ -91,6 +91,39 @@ def test_list_recipes_filter_invalid_category(client):
     assert client.get("/recipes", params={"category": "일식"}).status_code == 422
 
 
+def test_list_recipes_sort_by_cook_time_asc(client):
+    create(client, title="A", cook_time_minutes=30)
+    create(client, title="B", cook_time_minutes=None)
+    create(client, title="C", cook_time_minutes=10)
+    create(client, title="D", cook_time_minutes=20)
+    resp = client.get("/recipes", params={"sort_by": "cook_time"})
+    assert resp.status_code == 200
+    assert [r["title"] for r in resp.json()] == ["C", "D", "A", "B"]
+
+
+def test_list_recipes_sort_by_cook_time_desc(client):
+    create(client, title="A", cook_time_minutes=30)
+    create(client, title="B", cook_time_minutes=None)
+    create(client, title="C", cook_time_minutes=10)
+    resp = client.get("/recipes", params={"sort_by": "cook_time", "order": "desc"})
+    assert resp.status_code == 200
+    assert [r["title"] for r in resp.json()] == ["A", "C", "B"]
+
+
+def test_list_recipes_sort_with_category_filter(client):
+    create(client, title="A", cook_time_minutes=30)
+    create(client, title="B", cook_time_minutes=5, category="양식")
+    create(client, title="C", cook_time_minutes=10)
+    resp = client.get("/recipes", params={"category": "한식", "sort_by": "cook_time"})
+    assert [r["title"] for r in resp.json()] == ["C", "A"]
+
+
+def test_list_recipes_invalid_sort_params(client):
+    assert client.get("/recipes", params={"sort_by": "title"}).status_code == 422
+    resp = client.get("/recipes", params={"sort_by": "cook_time", "order": "up"})
+    assert resp.status_code == 422
+
+
 def test_get_recipe(client):
     created = create(client)
     resp = client.get(f"/recipes/{created['id']}")
